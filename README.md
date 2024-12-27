@@ -1,82 +1,110 @@
-For a simple testing NPM project, your `package.json` can look like this. It includes basic project metadata, dependencies, and a build script.
+The error occurs because the syntax for configuring the JFrog CLI server is incorrect. The JFrog CLI command for adding a server configuration requires a specific structure. Let's fix it.
 
-### **Sample `package.json`**
-```json
-{
-  "name": "sample-npm-project",
-  "version": "1.0.0",
-  "description": "A sample NPM project for testing JFrog Artifactory integration.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "echo \"Building the project...\" && mkdir -p dist && echo \"Build complete.\" > dist/output.txt"
-  },
-  "keywords": [
-    "sample",
-    "npm",
-    "artifactory",
-    "integration"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
-  "dependencies": {
-    "lodash": "^4.17.21"
-  },
-  "devDependencies": {
-    "eslint": "^8.52.0"
-  }
-}
+Here's the **correct and complete workflow** to build an npm project, fetch dependencies from a JFrog remote repository, and upload the build to an Artifactory repository.
+
+---
+
+### **Workflow YAML**
+
+```yaml
+name: Build and Upload to JFrog
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        cache: npm
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    - name: Install JFrog CLI
+      run: |
+        curl -fL https://getcli.jfrog.io | sh
+        chmod +x jfrog
+        ./jfrog --version
+
+    - name: Configure JFrog CLI
+      run: |
+        ./jfrog config add my-server \
+          --url=https://frigate.jfrog.io \
+          --access-token=${{ secrets.JFROG_TOKEN }} \
+          --interactive=false
+
+    - name: Authenticate npm with JFrog
+      run: ./jfrog npm-config --server-id-resolve=my-server --repo-resolve=my-npm-remote
+
+    - name: Publish npm package to JFrog Artifactory
+      run: ./jfrog npm-publish --server-id-deploy=my-server --repo-deploy=my-npm-local
+
+    - name: Capture version
+      run: |
+        VERSION=$(node -p "require('./package.json').version")
+        echo "Package version: $VERSION"
 ```
 
 ---
 
-### **Key Details in This `package.json`**
-1. **Basic Metadata:**
-   - `name`: The name of the project.
-   - `version`: Project version, useful for tracking uploads in Artifactory.
-   - `description`, `keywords`, `author`, `license`: General metadata.
+### **Key Points in the Workflow**
 
-2. **Scripts:**
-   - `test`: A placeholder script to demonstrate a test command.
-   - `build`: Simulates a build process by creating a `dist` folder and adding a sample output file.
+1. **Setup Node.js and npm Cache**
+   - Ensure you use `actions/setup-node` to install Node.js and enable npm caching for faster builds.
 
-3. **Dependencies:**
-   - Adds `lodash` as a production dependency (a commonly used utility library).
+2. **Install JFrog CLI**
+   - Use the official script to install JFrog CLI and make it executable.
 
-4. **DevDependencies:**
-   - Adds `eslint` for development (a JavaScript linter for code quality).
+3. **Configure JFrog CLI**
+   - Add a JFrog server configuration using `jfrog config add`.
+   - Use `--access-token` to authenticate securely (retrieve the token from GitHub Secrets).
 
----
+4. **Authenticate npm with JFrog**
+   - Configure npm to resolve dependencies from the JFrog remote repository (e.g., `my-npm-remote`).
 
-### **Sample Directory Structure**
-You can add the following files and folders for a minimal project:
-```
-sample-npm-project/
-├── index.js
-├── package.json
-├── dist/ (created by the build script)
-└── .eslintrc.json (optional, for eslint configuration)
-```
+5. **Publish to Artifactory**
+   - Use `jfrog npm-publish` to upload the build to the JFrog local repository (e.g., `my-npm-local`).
+
+6. **Capture the Version**
+   - Extract the version from `package.json` using Node.js and log it for confirmation.
 
 ---
 
-### **Example `index.js`**
-Add a basic `index.js` file:
-```javascript
-const _ = require('lodash');
+### **Repository Setup**
+1. **GitHub Secrets**
+   - Add the following secrets in your GitHub repository:
+     - `JFROG_TOKEN`: Your API token for JFrog.
+     - `JFROG_URL`: The base URL of your JFrog instance (e.g., `https://frigate.jfrog.io`).
 
-console.log('Hello, JFrog Artifactory!');
-console.log('Sample lodash usage:', _.capitalize('hello artifactory'));
-```
+2. **Jfrog Repositories**
+   - **my-npm-remote**: Remote repository for npm dependencies.
+   - **my-npm-local**: Local repository for publishing npm packages.
 
 ---
 
-### How It Works in the Workflow
-1. **Dependencies:**
-   - The workflow installs the dependencies (`lodash` and `eslint`) from the Artifactory remote repository.
-2. **Build Script:**
-   - The `build` script creates a dummy `dist/output.txt` file to simulate a project build.
-3. **Upload:**
-   - The built project, including the generated files, is uploaded to the specified Artifactory repository.
+### **Common Errors and Fixes**
 
-Let me know if you need help customizing further!
+1. **Wrong Number of Arguments (Config Add)**
+   - Ensure all required arguments (`--url`, `--access-token`) are passed correctly.
+
+2. **No Lock File Error**
+   - Ensure `package-lock.json` exists in the repository by running `npm install` locally and committing the file.
+
+3. **Repository Not Found**
+   - Verify the repository names (`my-npm-remote`, `my-npm-local`) in the JFrog Artifactory instance.
+
+---
+
+Let me know if you need further adjustments!
