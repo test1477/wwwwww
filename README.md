@@ -1,104 +1,116 @@
-Here’s a GitHub Actions workflow for building an NPM project, fetching dependencies from a JFrog Artifactory remote repository, and uploading the built package to a specific repository in Artifactory. The workflow uses JFrog CLI and an API token for authentication.
+For a simple npm project, you need the following files:
 
----
+1. package.json
+2. index.js
+3. README.md
 
-### **GitHub Actions Workflow File**
+Here's what each file should contain:
 
-Save this workflow in your repository as `.github/workflows/npm-artifactory-build.yml`.
+## package.json
+
+```json
+{
+  "name": "my-simple-npm-project",
+  "version": "1.0.0",
+  "description": "A simple npm project example",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["npm", "example"],
+  "author": "Your Name",
+  "license": "MIT"
+}
+```
+
+## index.js
+
+```javascript
+console.log("Hello from my simple npm project!");
+```
+
+## README.md
+
+```markdown
+# My Simple NPM Project
+
+This is a basic npm project example.
+
+## Installation
+
+Run `npm install` to install dependencies.
+
+## Usage
+
+Run `npm start` to execute the project.
+```
+
+Updated workflow:
 
 ```yaml
-name: Build and Upload NPM Project
+name: Build and Publish NPM Package
 
 on:
-  workflow_dispatch: # Allows manual trigger of the workflow
+  workflow_dispatch:
 
 env:
-  JF_URL: https://frigate.jfrog.io  # Replace with your JFrog Artifactory URL
-  JF_REPO: npm-remote-repo         # Replace with your remote NPM repository
-  JF_TARGET_REPO: npm-local-repo   # Replace with your local NPM repository
-  JF_ARTIFACTORY_API_TOKEN: ${{ secrets.JF_ARTIFACTORY_API_TOKEN }} # Store the token as a GitHub secret
+  JF_URL: ${{ secrets.JF_URL }}
+  JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
 
 jobs:
-  build-and-upload:
+  build-and-publish:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16' # Use the desired Node.js version
-          cache: 'npm'
+          node-version: '16'
 
-      - name: Install JFrog CLI
+      - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
-        with:
-          version: 'latest'
-      
+
       - name: Configure JFrog CLI
         run: |
-          jfrog config add my-server \
-            --url=${{ env.JF_URL }} \
-            --apikey=${{ env.JF_ARTIFACTORY_API_TOKEN }} \
-            --interactive=false
+          jf c add artifactory --url=${JF_URL} --access-token=${JF_ACCESS_TOKEN} --interactive=false
 
-      - name: Install Dependencies from Artifactory
+      - name: Configure npm repository
         run: |
-          jf rt npm-config --server-id-resolve=my-server --repo-resolve=${{ env.JF_REPO }}
-          npm install
+          jf npm-config --repo-resolve=npm-remote --repo-deploy=npm-local
 
-      - name: Build the NPM Project
-        run: |
-          npm run build
+      - name: Install dependencies
+        run: jf npm install
 
-      - name: Publish to Artifactory
-        run: |
-          jf rt npm-publish --server-id-deploy=my-server --repo-deploy=${{ env.JF_TARGET_REPO }}
+      - name: Run start script
+        run: npm start
 
-      - name: Capture Version and Upload Metadata
+      - name: Get package version
+        id: package-version
+        run: echo "::set-output name=version::$(node -p "require('./package.json').version")"
+
+      - name: Publish to JFrog Artifactory
         run: |
-          PACKAGE_VERSION=$(jq -r '.version' package.json)
-          echo "Built version: $PACKAGE_VERSION"
-          echo "version=$PACKAGE_VERSION" >> $GITHUB_ENV
+          jf npm publish --build-name=my-npm-build --build-number=${{ github.run_number }}
+
+      - name: Collect environment variables
+        run: |
+          jf rt bce my-npm-build ${{ github.run_number }}
+
+      - name: Publish build info
+        run: |
+          jf rt bp my-npm-build ${{ github.run_number }} --build-url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 ```
 
----
+This workflow now includes a step to run the start script defined in package.json[1][6].
 
-### **Explanation**
-
-1. **Triggers:**
-   - The `workflow_dispatch` event allows manual triggering from the GitHub Actions UI.
-
-2. **Environment Variables:**
-   - `JF_URL`: Your JFrog Artifactory URL.
-   - `JF_REPO`: The Artifactory remote repository used for dependency resolution.
-   - `JF_TARGET_REPO`: The Artifactory local repository where the built package is uploaded.
-   - `JF_ARTIFACTORY_API_TOKEN`: An API token for authenticating with Artifactory (stored as a secret).
-
-3. **Steps:**
-   - **Checkout Code:** Clones the repository into the workflow runner.
-   - **Setup Node.js:** Installs the required Node.js version.
-   - **Install JFrog CLI:** Sets up the JFrog CLI tool.
-   - **Configure JFrog CLI:** Configures the CLI with the Artifactory URL and API token.
-   - **Install Dependencies:** Fetches NPM dependencies from the Artifactory remote repository.
-   - **Build the Project:** Runs the build script (assumes a script named `build` is in `package.json`).
-   - **Publish to Artifactory:** Uploads the built package to the specified Artifactory local repository.
-   - **Capture Version:** Extracts the `version` field from `package.json` and logs it for traceability.
-
-4. **Secrets Management:**
-   - Add your JFrog API token as a GitHub secret named `JF_ARTIFACTORY_API_TOKEN`.
-
----
-
-### **How to Trigger the Workflow**
-1. Navigate to the "Actions" tab in your GitHub repository.
-2. Select this workflow and click **"Run workflow"**.
-3. The workflow will:
-   - Install dependencies.
-   - Build the project.
-   - Publish the package to Artifactory.
-   - Log the built version.
-
-Let me know if you need additional customizations!
+Citations:
+[1] https://docs.npmjs.com/creating-a-package-json-file/
+[2] https://blog.ossph.org/unpacking-the-package-json-explaining-the-most-commonly-used-parts-of-npms-package-json/
+[3] https://www.geeksforgeeks.org/folder-structure-for-a-node-js-project/
+[4] https://heynode.com/tutorial/what-packagejson/
+[5] https://survivejs.com/books/maintenance/packaging/anatomy/
+[6] https://nodesource.com/blog/the-basics-of-package-json
+[7] https://dev.to/mr_ali3n/folder-structure-for-nodejs-expressjs-project-435l
