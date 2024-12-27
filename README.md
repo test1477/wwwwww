@@ -1,116 +1,82 @@
-For a simple npm project, you need the following files:
+For a simple testing NPM project, your `package.json` can look like this. It includes basic project metadata, dependencies, and a build script.
 
-1. package.json
-2. index.js
-3. README.md
-
-Here's what each file should contain:
-
-## package.json
-
+### **Sample `package.json`**
 ```json
 {
-  "name": "my-simple-npm-project",
+  "name": "sample-npm-project",
   "version": "1.0.0",
-  "description": "A simple npm project example",
+  "description": "A sample NPM project for testing JFrog Artifactory integration.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "echo \"Building the project...\" && mkdir -p dist && echo \"Build complete.\" > dist/output.txt"
   },
-  "keywords": ["npm", "example"],
+  "keywords": [
+    "sample",
+    "npm",
+    "artifactory",
+    "integration"
+  ],
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "eslint": "^8.52.0"
+  }
 }
 ```
 
-## index.js
+---
 
+### **Key Details in This `package.json`**
+1. **Basic Metadata:**
+   - `name`: The name of the project.
+   - `version`: Project version, useful for tracking uploads in Artifactory.
+   - `description`, `keywords`, `author`, `license`: General metadata.
+
+2. **Scripts:**
+   - `test`: A placeholder script to demonstrate a test command.
+   - `build`: Simulates a build process by creating a `dist` folder and adding a sample output file.
+
+3. **Dependencies:**
+   - Adds `lodash` as a production dependency (a commonly used utility library).
+
+4. **DevDependencies:**
+   - Adds `eslint` for development (a JavaScript linter for code quality).
+
+---
+
+### **Sample Directory Structure**
+You can add the following files and folders for a minimal project:
+```
+sample-npm-project/
+├── index.js
+├── package.json
+├── dist/ (created by the build script)
+└── .eslintrc.json (optional, for eslint configuration)
+```
+
+---
+
+### **Example `index.js`**
+Add a basic `index.js` file:
 ```javascript
-console.log("Hello from my simple npm project!");
+const _ = require('lodash');
+
+console.log('Hello, JFrog Artifactory!');
+console.log('Sample lodash usage:', _.capitalize('hello artifactory'));
 ```
 
-## README.md
+---
 
-```markdown
-# My Simple NPM Project
+### How It Works in the Workflow
+1. **Dependencies:**
+   - The workflow installs the dependencies (`lodash` and `eslint`) from the Artifactory remote repository.
+2. **Build Script:**
+   - The `build` script creates a dummy `dist/output.txt` file to simulate a project build.
+3. **Upload:**
+   - The built project, including the generated files, is uploaded to the specified Artifactory repository.
 
-This is a basic npm project example.
-
-## Installation
-
-Run `npm install` to install dependencies.
-
-## Usage
-
-Run `npm start` to execute the project.
-```
-
-Updated workflow:
-
-```yaml
-name: Build and Publish NPM Package
-
-on:
-  workflow_dispatch:
-
-env:
-  JF_URL: ${{ secrets.JF_URL }}
-  JF_ACCESS_TOKEN: ${{ secrets.JF_ACCESS_TOKEN }}
-
-jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
-
-      - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@v4
-
-      - name: Configure JFrog CLI
-        run: |
-          jf c add artifactory --url=${JF_URL} --access-token=${JF_ACCESS_TOKEN} --interactive=false
-
-      - name: Configure npm repository
-        run: |
-          jf npm-config --repo-resolve=npm-remote --repo-deploy=npm-local
-
-      - name: Install dependencies
-        run: jf npm install
-
-      - name: Run start script
-        run: npm start
-
-      - name: Get package version
-        id: package-version
-        run: echo "::set-output name=version::$(node -p "require('./package.json').version")"
-
-      - name: Publish to JFrog Artifactory
-        run: |
-          jf npm publish --build-name=my-npm-build --build-number=${{ github.run_number }}
-
-      - name: Collect environment variables
-        run: |
-          jf rt bce my-npm-build ${{ github.run_number }}
-
-      - name: Publish build info
-        run: |
-          jf rt bp my-npm-build ${{ github.run_number }} --build-url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
-```
-
-This workflow now includes a step to run the start script defined in package.json[1][6].
-
-Citations:
-[1] https://docs.npmjs.com/creating-a-package-json-file/
-[2] https://blog.ossph.org/unpacking-the-package-json-explaining-the-most-commonly-used-parts-of-npms-package-json/
-[3] https://www.geeksforgeeks.org/folder-structure-for-a-node-js-project/
-[4] https://heynode.com/tutorial/what-packagejson/
-[5] https://survivejs.com/books/maintenance/packaging/anatomy/
-[6] https://nodesource.com/blog/the-basics-of-package-json
-[7] https://dev.to/mr_ali3n/folder-structure-for-nodejs-expressjs-project-435l
+Let me know if you need help customizing further!
