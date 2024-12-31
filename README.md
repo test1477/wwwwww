@@ -1,4 +1,6 @@
-Here's the updated GitHub Actions workflow, incorporating the configuration needed to publish an NPM package to your JFrog Artifactory repository. It uses the `publishConfig` in `package.json` or the `--registry` flag for publishing:
+If the registry you want to fetch dependencies from is `npm-remote` (e.g., for installing dependencies), then you can update the `Configure NPM Registry for Artifactory` step like this:
+
+### Updated Workflow
 
 ```yaml
 name: Build and Upload NPM Project
@@ -8,6 +10,7 @@ on:
 
 env:
   JF_URL: https://frigate.jfrog.io  # Replace with your JFrog Artifactory URL
+  JF_REMOTE_REPO: npm-remote        # Replace with your remote NPM repository
   JF_TARGET_REPO: npm-test-project  # Replace with your target NPM repository
   JF_ARTIFACTORY_API_TOKEN: ${{ secrets.JF_ARTIFACTORY_API_TOKEN }} # Store the token as a GitHub secret
 
@@ -27,7 +30,7 @@ jobs:
 
       - name: Configure NPM Registry for Artifactory
         run: |
-          echo "//frigate.jfrog.io/artifactory/api/npm/${{ env.JF_TARGET_REPO }}/:_authToken=${{ secrets.JF_ARTIFACTORY_API_TOKEN }}" > ~/.npmrc
+          echo "//frigate.jfrog.io/artifactory/api/npm/${{ env.JF_REMOTE_REPO }}/:_authToken=${{ secrets.JF_ARTIFACTORY_API_TOKEN }}" > ~/.npmrc
 
       - name: Install Dependencies
         run: |
@@ -47,21 +50,16 @@ jobs:
           echo "Published to: https://frigate.jfrog.io/artifactory/webapp/#/artifacts/browse/tree/General/${{ env.JF_TARGET_REPO }}"
 ```
 
-### Key Updates
-1. **Registry Configuration (`.npmrc`)**:
-   - Explicitly sets the registry for Artifactory using `npmrc` with an API token.
+### Explanation of Changes
+1. **`JF_REMOTE_REPO`**:
+   - Changed the `.npmrc` to point to the `npm-remote` repository for fetching dependencies.
 
-2. **Publish Command**:
-   - Uses `npm publish` with the `--registry` flag to target the correct Artifactory repository.
+2. **Install and Publish**:
+   - Dependencies are installed from `npm-remote`.
+   - The package is published to `npm-test-project`.
 
-3. **Verification**:
-   - Includes a message with the Artifactory URL where you can verify the published package.
+### Behavior
+- Dependencies are fetched from the `npm-remote` repository.
+- Built packages are published to the `npm-test-project` repository.
 
----
-
-### Notes:
-- **Authentication**: Ensure that the API token has sufficient permissions to publish packages to the target repository.
-- **Secrets**: Use GitHub Secrets for storing sensitive information like `JF_ARTIFACTORY_API_TOKEN`.
-- **Build Script**: Ensure that your `package.json` includes a `build` script if you’re using `npm run build`.
-
-Let me know if you need further assistance!
+Let me know if you need further adjustments!
