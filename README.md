@@ -1,61 +1,67 @@
-Certainly. Here's the updated script with SSL verification disabled and warnings suppressed. Please remember that this is not recommended for production use due to security risks.
+Here's the updated GitHub Actions workflow, incorporating the configuration needed to publish an NPM package to your JFrog Artifactory repository. It uses the `publishConfig` in `package.json` or the `--registry` flag for publishing:
 
-```python
-import requests
-import json
-from urllib3.exceptions import InsecureRequestWarning
+```yaml
+name: Build and Upload NPM Project
 
-# Suppress only the single warning from urllib3 needed.
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+on:
+  workflow_dispatch: # Allows manual trigger of the workflow
 
-# Artifactory connection details
-artifactory_url = "https://frigate.jfrog.io/artifactory"
-api_token = "your_api_token"
+env:
+  JF_URL: https://frigate.jfrog.io  # Replace with your JFrog Artifactory URL
+  JF_TARGET_REPO: npm-test-project  # Replace with your target NPM repository
+  JF_ARTIFACTORY_API_TOKEN: ${{ secrets.JF_ARTIFACTORY_API_TOKEN }} # Store the token as a GitHub secret
 
-# API endpoint for searching artifacts
-search_endpoint = f"{artifactory_url}/api/search/aql"
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
 
-# AQL query to fetch all artifacts
-aql_query = 'items.find()'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-# Headers for the request
-headers = {
-    "Content-Type": "text/plain",
-    "X-JFrog-Art-Api": api_token
-}
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16' # Use the desired Node.js version
+          cache: 'npm'
 
-try:
-    # Send the request to Artifactory with SSL verification disabled
-    response = requests.post(search_endpoint, 
-                             headers=headers, 
-                             data=aql_query,
-                             verify=False)  # Disable SSL verification
+      - name: Configure NPM Registry for Artifactory
+        run: |
+          echo "//frigate.jfrog.io/artifactory/api/npm/${{ env.JF_TARGET_REPO }}/:_authToken=${{ secrets.JF_ARTIFACTORY_API_TOKEN }}" > ~/.npmrc
 
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Parse the JSON response
-        artifacts = response.json()["results"]
-        
-        # Write the artifacts to a JSON file
-        with open("artifacts_export.json", "w") as outfile:
-            json.dump(artifacts, outfile, indent=2)
-        
-        print(f"Exported {len(artifacts)} artifacts to artifacts_export.json")
-    else:
-        print(f"Failed to fetch artifacts. Status code: {response.status_code}")
-        print(response.text)
+      - name: Install Dependencies
+        run: |
+          npm install
 
-except requests.exceptions.RequestException as e:
-    print(f"An error occurred: {e}")
+      - name: Build the NPM Project
+        run: |
+          npm run build
 
+      - name: Publish to Artifactory
+        run: |
+          npm publish --registry=https://frigate.jfrog.io/artifactory/api/npm/${{ env.JF_TARGET_REPO }}/
+
+      - name: Verify Published Package
+        run: |
+          echo "Checking if the package was published successfully..."
+          echo "Published to: https://frigate.jfrog.io/artifactory/webapp/#/artifacts/browse/tree/General/${{ env.JF_TARGET_REPO }}"
 ```
 
-This script does the following:
+### Key Updates
+1. **Registry Configuration (`.npmrc`)**:
+   - Explicitly sets the registry for Artifactory using `npmrc` with an API token.
 
-1. Suppresses the InsecureRequestWarning.
-2. Uses `verify=False` in the `requests.post()` call to disable SSL certificate verification.
-3. Includes error handling to catch and print any exceptions that might occur during the request.
+2. **Publish Command**:
+   - Uses `npm publish` with the `--registry` flag to target the correct Artifactory repository.
 
-Remember to replace `"your_api_token"` with your actual JFrog Artifactory API token.
+3. **Verification**:
+   - Includes a message with the Artifactory URL where you can verify the published package.
 
-Again, I must emphasize that disabling SSL verification is not recommended for production use. It's a temporary solution for development or testing purposes. In a production environment, you should properly configure SSL certificates or use a trusted certificate authority.
+---
+
+### Notes:
+- **Authentication**: Ensure that the API token has sufficient permissions to publish packages to the target repository.
+- **Secrets**: Use GitHub Secrets for storing sensitive information like `JF_ARTIFACTORY_API_TOKEN`.
+- **Build Script**: Ensure that your `package.json` includes a `build` script if you’re using `npm run build`.
+
+Let me know if you need further assistance!
